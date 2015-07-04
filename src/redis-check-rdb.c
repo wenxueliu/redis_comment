@@ -647,12 +647,14 @@ void process(void) {
     }
 }
 
+
 int redis_check_rdb(char *rdbfilename) {
     int fd;
     off_t size;
     struct stat stat;
     void *data;
-
+    
+    //打开文件方式，mmap 使用
     fd = open(rdbfilename, O_RDONLY);
     if (fd < 1) {
         ERROR("Cannot open file: %s", rdbfilename);

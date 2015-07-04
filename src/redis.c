@@ -1540,8 +1540,10 @@ void initServerConfig(void) {
     /* Command table -- we initiialize it here as it is part of the
      * initial configuration, since command names may be changed via
      * redis.conf using the rename-command directive. */
+    //创建两个字典 server.commands 和 server.orig_commands
     server.commands = dictCreate(&commandTableDictType,NULL);
     server.orig_commands = dictCreate(&commandTableDictType,NULL);
+    //根据 redisCommandTable 加入字典结构 server.commands 和 server.orig_commands 中
     populateCommandTable();
     server.delCommand = lookupCommandByCString("del");
     server.multiCommand = lookupCommandByCString("multi");
@@ -1757,6 +1759,7 @@ void resetServerStats(void) {
     server.stat_net_output_bytes = 0;
 }
 
+//处理信号，创建 TCP， 进程间通信的socket，监听文件事件，aof 等其他初始化
 void initServer(void) {
     int j;
 
@@ -1785,6 +1788,8 @@ void initServer(void) {
 
     createSharedObjects();
     adjustOpenFilesLimit();
+
+    //事件循环服务
     server.el = aeCreateEventLoop(server.maxclients+REDIS_EVENTLOOP_FDSET_INCR);
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
@@ -1793,6 +1798,7 @@ void initServer(void) {
         listenToPort(server.port,server.ipfd,&server.ipfd_count) == REDIS_ERR)
         exit(1);
 
+    //打开本地的 socket 进程
     /* Open the listening Unix domain socket. */
     if (server.unixsocket != NULL) {
         unlink(server.unixsocket); /* don't care if this fails */
@@ -1899,6 +1905,8 @@ void initServer(void) {
 
 /* Populates the Redis Command Table starting from the hard coded list
  * we have on top of redis.c file. */
+
+//根据 redisCommandTable 加入字典结构 server.commands 和 server.orig_commands 中
 void populateCommandTable(void) {
     int j;
     int numcommands = sizeof(redisCommandTable)/sizeof(struct redisCommand);
@@ -3459,6 +3467,7 @@ void createPidFile(void) {
     }
 }
 
+//可重用的后台进程。
 void daemonize(void) {
     int fd;
 
@@ -3718,6 +3727,7 @@ int redisSupervisedSystemd(void) {
     return 1;
 }
 
+//用 upstart 还是 systemed 开启 redis 服务
 int redisIsSupervised(int mode) {
     if (mode == REDIS_SUPERVISED_AUTODETECT) {
         const char *upstart_job = getenv("UPSTART_JOB");
@@ -3774,10 +3784,18 @@ int main(int argc, char **argv) {
     setlocale(LC_COLLATE,"");
     zmalloc_enable_thread_safeness();
     zmalloc_set_oom_handler(redisOutOfMemoryHandler);
+
+    //为了 REDID_RUN_ID 的唯一性，设置随机种子
     srand(time(NULL)^getpid());
     gettimeofday(&tv,NULL);
     dictSetHashFunctionSeed(tv.tv_sec^tv.tv_usec^getpid());
+    //解析命令行中是否有 argv[0]="redis-sentinel" 或 argv[i]= "--sentinel"
     server.sentinel_mode = checkForSentinelMode(argc,argv);
+
+    //处理信号，创建 TCP， 进程间通信的socket，监听文件事件，aof 等其他初始化
+    /*
+     * daemonize() 信号处理，创建事件驱动的服务都可以重用。
+     */
     initServerConfig();
 
     /* We need to init sentinel right now as parsing the configuration file
@@ -3791,6 +3809,7 @@ int main(int argc, char **argv) {
     /* Check if we need to start in redis-check-rdb mode. We just execute
      * the program main. However the program is part of the Redis executable
      * so that we can easily execute an RDB check on loading errors. */
+    //校验数据库文件的合法性
     if (strstr(argv[0],"redis-check-rdb") != NULL)
         exit(redis_check_rdb_main(argv,argc));
 
@@ -3822,6 +3841,7 @@ int main(int argc, char **argv) {
          * configuration file. For instance --port 6380 will generate the
          * string "port 6380\n" to be parsed after the actual file name
          * is parsed, if any. */
+        //如果多于两个参数，增加到 options 中
         while(j != argc) {
             if (argv[j][0] == '-' && argv[j][1] == '-') {
                 /* Option name */
@@ -3840,6 +3860,8 @@ int main(int argc, char **argv) {
             }
             j++;
         }
+
+        //sentinel_mode 模式，配置文件必须是文件，而不能是输入流
         if (server.sentinel_mode && configfile && *configfile == '-') {
             redisLog(REDIS_WARNING,
                 "Sentinel config from STDIN not allowed.");
@@ -3847,15 +3869,28 @@ int main(int argc, char **argv) {
                 "Sentinel needs config file on disk to save state.  Exiting...");
             exit(1);
         }
+        // 这里 getAbsolutePath 可能返回为 null
         if (configfile) server.configfile = getAbsolutePath(configfile);
+
+        //重置 server.saveparams 和 server.saveparamslen
         resetServerSaveParams();
+
+        //加载配置从配置文件和第三个参数及其之后的参数
         loadServerConfig(configfile,options);
         sdsfree(options);
     } else {
         redisLog(REDIS_WARNING, "Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/%s.conf", argv[0], server.sentinel_mode ? "sentinel" : "redis");
     }
 
+    /*用 upstart 还是 systemed 开启 redis 服务, supervised_mode 有 
+     * 1. REDIS_SUPERVISED_NONE
+     * 2. REDIS_SUPERVISED_AUTODETECT
+     * 3. REDIS_SUPERVISED_UPSTART
+     * 4. REDIS_SUPERVISED_SYSTEMD
+     */
     server.supervised = redisIsSupervised(server.supervised_mode);
+
+    //与 supervised 冲突
     int background = server.daemonize && !server.supervised;
     if (background) daemonize();
 
