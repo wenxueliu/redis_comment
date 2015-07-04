@@ -30,6 +30,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+ /*
+  timeEvent : 基于时间的事件处理，将所有的处理以时间的链表保存
+  firedEvent : 准备处理的
+  fileEvent : 文件事件，可读或可写
+
+  调用 int aeProcessEvents(aeEventLoop *eventLoop, int flags) 找到距离当前时间最近需要处理事件的时间间隔，
+  调用 aeApiPoll(eventLoop, tvp) 将事件加入 firedEvent 中，返回需要处理的事件个数。
+  从 eventLoop 通过 firedEvent 找到对应的文件事件，调用对应的 rfileProc() 或 rfileProc()
+
+   其中 firedEvent 与 具体的事件是紧耦合的， 如果多进程的情况，必须在 firedEvent 的地方加锁或每个进程
+   创建一个 eventLoop 也是可以的。
+ */
+
 #ifndef __AE_H__
 #define __AE_H__
 
@@ -89,11 +102,17 @@ typedef struct aeEventLoop {
     int setsize; /* max number of file descriptors tracked */
     long long timeEventNextId;
     time_t lastTime;     /* Used to detect system clock skew */
+
+    //以 fd 为索引的数组， fd 这里既扮演文件描述符也扮演索引 id
     aeFileEvent *events; /* Registered events */
+
     aeFiredEvent *fired; /* Fired events */
+
     aeTimeEvent *timeEventHead;
     int stop;
-    void *apidata; /* This is used for polling API specific data */
+
+    //evport epoll poll select， c 中的泛型使用方法，对应设计模式的工厂模式
+    void *apidata; /* This is used for polling API specific data */ 
     aeBeforeSleepProc *beforesleep;
 } aeEventLoop;
 

@@ -67,6 +67,9 @@ void zlibc_free(void *ptr) {
 #define free(ptr) je_free(ptr)
 #endif
 
+//atomic_* 函数参考这里：http://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
+//__ATOMIC_RELAXED 并不能保证线程的安全，对于 redis 是单线程的，可以显著增加性能。
+
 #if defined(__ATOMIC_RELAXED)
 #define update_zmalloc_stat_add(__n) __atomic_add_fetch(&used_memory, (__n), __ATOMIC_RELAXED)
 #define update_zmalloc_stat_sub(__n) __atomic_sub_fetch(&used_memory, (__n), __ATOMIC_RELAXED)
@@ -88,6 +91,7 @@ void zlibc_free(void *ptr) {
 
 #endif
 
+//if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); 目的何在？ 每次增加不超过 sizof(long) ?
 #define update_zmalloc_stat_alloc(__n) do { \
     size_t _n = (__n); \
     if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \

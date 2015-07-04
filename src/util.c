@@ -452,7 +452,8 @@ int d2string(char *buf, size_t len, double value) {
 /* Generate the Redis "Run ID", a SHA1-sized random number that identifies a
  * given execution of Redis, so that if you are talking with an instance
  * having run_id == A, and you reconnect and it has run_id == B, you can be
- * sure that it is either a different instance or it was restarted. */
+ * sure that it is either a different instance or it was restarted. */ 
+//可重用，用于唯一 id
 void getRandomHexChars(char *p, unsigned int len) {
     char *charset = "0123456789abcdef";
     unsigned int j;

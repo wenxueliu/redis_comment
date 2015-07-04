@@ -36,11 +36,12 @@ typedef struct aeApiState {
     struct epoll_event *events;
 } aeApiState;
 
+//学习这里处理 zmalloc 失败的方式
 static int aeApiCreate(aeEventLoop *eventLoop) {
     aeApiState *state = zmalloc(sizeof(aeApiState));
 
     if (!state) return -1;
-    state->events = zmalloc(sizeof(struct epoll_event)*eventLoop->setsize);
+    state->events = zmalloc(sizeof(struct epoll_event) * eventLoop->setsize);
     if (!state->events) {
         zfree(state);
         return -1;
@@ -58,7 +59,7 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
 static int aeApiResize(aeEventLoop *eventLoop, int setsize) {
     aeApiState *state = eventLoop->apidata;
 
-    state->events = zrealloc(state->events, sizeof(struct epoll_event)*setsize);
+    state->events = zrealloc(state->events, sizeof(struct epoll_event) * setsize);
     return 0;
 }
 
@@ -70,6 +71,7 @@ static void aeApiFree(aeEventLoop *eventLoop) {
     zfree(state);
 }
 
+//调用 epoll_ctl
 static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
     aeApiState *state = eventLoop->apidata;
     struct epoll_event ee;
@@ -88,6 +90,7 @@ static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
     return 0;
 }
 
+//调用 epoll_ctl
 static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
     aeApiState *state = eventLoop->apidata;
     struct epoll_event ee;
@@ -107,6 +110,7 @@ static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
     }
 }
 
+//调用 epoll_wait 等待事件发生，并初始化 eventLoop->fired
 static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
     aeApiState *state = eventLoop->apidata;
     int retval, numevents = 0;

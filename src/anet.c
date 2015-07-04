@@ -48,6 +48,7 @@
 
 #include "anet.h"
 
+//static 函数表示本文件有效
 static void anetSetError(char *err, const char *fmt, ...)
 {
     va_list ap;
@@ -58,7 +59,7 @@ static void anetSetError(char *err, const char *fmt, ...)
     va_end(ap);
 }
 
-int anetSetBlock(char *err, int fd, int non_block) {
+static int anetSetBlock(char *err, int fd, int non_block) {
     int flags;
 
     /* Set the socket blocking (if non_block is zero) or non-blocking.
@@ -89,6 +90,8 @@ int anetBlock(char *err, int fd) {
     return anetSetBlock(err,fd,0);
 }
 
+
+//TCP Keep Alive 的实例
 /* Set TCP keep alive option to detect dead peers. The interval option
  * is only used for Linux as we are using Linux-specific APIs to set
  * the probe send time, interval, and count. */
@@ -132,6 +135,7 @@ int anetKeepAlive(char *err, int fd, int interval)
         return ANET_ERR;
     }
 #else
+    //通过强制转为 void 可以避免警告
     ((void) interval); /* Avoid unused var warning for non Linux systems. */
 #endif
 
@@ -200,6 +204,10 @@ int anetSendTimeout(char *err, int fd, long long ms) {
  * If flags is set to ANET_IP_ONLY the function only resolves hostnames
  * that are actually already IPv4 or IPv6 addresses. This turns the function
  * into a validating / normalizing function. */
+
+ /*
+ ipbuf 和 ipbuf_len， host 必须通过 malloc 分配内存方可使用
+ */
 int anetGenericResolve(char *err, char *host, char *ipbuf, size_t ipbuf_len,
                        int flags)
 {
@@ -235,6 +243,7 @@ int anetResolveIP(char *err, char *host, char *ipbuf, size_t ipbuf_len) {
     return anetGenericResolve(err,host,ipbuf,ipbuf_len,ANET_IP_ONLY);
 }
 
+//重用地址的好处是能够打开的 socket 几乎是无数的。待进一步研究
 static int anetSetReuseAddr(char *err, int fd) {
     int yes = 1;
     /* Make sure connection-intensive things like the redis benckmark
@@ -246,6 +255,7 @@ static int anetSetReuseAddr(char *err, int fd) {
     return ANET_OK;
 }
 
+//redis 所有socket 都是重用的
 static int anetCreateSocket(char *err, int domain) {
     int s;
     if ((s = socket(domain, SOCK_STREAM, 0)) == -1) {
