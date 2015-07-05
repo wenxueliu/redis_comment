@@ -517,6 +517,7 @@ int anetTcp6Server(char *err, int port, char *bindaddr, int backlog)
     return _anetTcpServer(err, port, bindaddr, AF_INET6, backlog);
 }
 
+//与 path 建立进程间通信，权限为 perm, 返回进程间通信的 fd
 int anetUnixServer(char *err, char *path, mode_t perm, int backlog)
 {
     int s;
@@ -535,6 +536,7 @@ int anetUnixServer(char *err, char *path, mode_t perm, int backlog)
     return s;
 }
 
+//sa 保存客户端信息， 返回 s 接受到链路对应的 fd
 static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len) {
     int fd;
     while(1) {
@@ -552,6 +554,7 @@ static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *l
     return fd;
 }
 
+// ip:port 客户端 ip 和端口， 返回 ip:port->s 链路对应的 fd
 int anetTcpAccept(char *err, int s, char *ip, size_t ip_len, int *port) {
     int fd;
     struct sockaddr_storage sa;

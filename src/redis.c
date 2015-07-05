@@ -58,6 +58,7 @@
 
 /* Our shared "common" objects */
 
+//将所有错误信息的集中到一结构体中，方便各个函数调用。
 struct sharedObjectsStruct shared;
 
 /* Global vars that are actually used as constants. The following double
@@ -1316,6 +1317,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
 
 /* =========================== Server initialization ======================== */
 
+//初始化 shared
 void createSharedObjects(void) {
     int j;
 
@@ -1682,6 +1684,9 @@ void checkTcpBacklogSettings(void) {
  * impossible to bind, or no bind addresses were specified in the server
  * configuration but the function is not able to bind * for at least
  * one of the IPv4 or IPv6 protocols. */
+
+//fds : socket 返回的 fd
+//count : fds 的开始索引
 int listenToPort(int port, int *fds, int *count) {
     int j;
 
@@ -1759,7 +1764,31 @@ void resetServerStats(void) {
     server.stat_net_output_bytes = 0;
 }
 
-//处理信号，创建 TCP， 进程间通信的socket，监听文件事件，aof 等其他初始化
+/*
+网络服务启动过程：
+1. server.el = aeCreateEventLoop() 创建事件循环队列。 大小为 server.maxclients + 128 
+2. listenToPort() 将 server.port 绑定到 server.bindaddr数组中的每一个元素，并将绑定所建立链路的 fd 存储在 server.ipfd 中
+3. anetUnixServer() 与 server.unixsocket 建立进程间通信，权限为 server.unixsocketperm，返回  server.sofd 
+4. aeCreateTimeEvent() 与 server.el 绑定 timeEvent, 执行 serverCron
+5. aeCreateFileEvent() server.el 监听 server.ipfd 中每一个 fd 的可读事件，调用 acceptTcpHandler() 建立连接，并创建对应的 RedisClient 对象
+6. aeCreateFileEvent() server.el 监听 server.sofd 的可读事件，调用 acceptUnixHandler() 建立连接，并创建对应的 RedisClient 对象
+7. aeMain() 事件开始运行，服务器开始接受客户的的请求，并相应客户端的请求。
+
+待解决问题：在哪里接受客户的请求数据，解析并构造应答？
+
+总结 ：感觉这里实现可以尽量合到一起，结构太松散。与 c++ boost.asio 相比，还是不够优雅。这当然与 C 本身的问题也有关。
+
+处理信号，创建 TCP， 进程间通信的socket，监听文件事件，aof 等其他初始化
+*/
+/*
+将信号处理，TCP，UNIX 服务提取出来重用
+
+ * setupSignalHandlers();
+ * listenToPort()
+ * aeCreateTimeEvent()
+ * aeCreateFileEvent()
+ */
+
 void initServer(void) {
     int j;
 
@@ -1786,6 +1815,7 @@ void initServer(void) {
     server.clients_paused = 0;
     server.system_memory_size = zmalloc_get_memory_size();
 
+    //shared 的初始化，主要用于各个函数共享错误提示信息
     createSharedObjects();
     adjustOpenFilesLimit();
 
@@ -1794,6 +1824,7 @@ void initServer(void) {
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
     /* Open the TCP listening socket for the user commands. */
+    //server.ipfd server.ipfd_count 是 socket 绑定的 fd，及fd 开始的索引
     if (server.port != 0 &&
         listenToPort(server.port,server.ipfd,&server.ipfd_count) == REDIS_ERR)
         exit(1);
@@ -1863,6 +1894,7 @@ void initServer(void) {
 
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
+    //监控所有绑定的 TCP socket fd, 当有可读事件时，调用 acceptTcpHandler()
     for (j = 0; j < server.ipfd_count; j++) {
         if (aeCreateFileEvent(server.el, server.ipfd[j], AE_READABLE,
             acceptTcpHandler,NULL) == AE_ERR)
@@ -1871,6 +1903,7 @@ void initServer(void) {
                     "Unrecoverable error creating server.ipfd file event.");
             }
     }
+    //监控所有绑定的 UNIX socket fd, 当有可读事件时，调用 acceptUnixHandler()
     if (server.sofd > 0 && aeCreateFileEvent(server.el,server.sofd,AE_READABLE,
         acceptUnixHandler,NULL) == AE_ERR) redisPanic("Unrecoverable error creating server.sofd file event.");
 

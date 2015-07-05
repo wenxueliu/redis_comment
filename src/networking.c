@@ -81,7 +81,7 @@ redisClient *createClient(int fd) {
             return NULL;
         }
     }
-
+    //默认选择 0 号数据库
     selectDb(c,0);
     c->id = server.next_client_id++;
     c->fd = fd;
@@ -617,6 +617,7 @@ static void acceptCommonHandler(int fd, int flags) {
     c->flags |= flags;
 }
 
+//privadata 客户端的数据
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;
     char cip[REDIS_IP_STR_LEN];
@@ -637,6 +638,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 }
 
+//privadata 客户端的数据
 void acceptUnixHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cfd, max = MAX_ACCEPTS_PER_CALL;
     REDIS_NOTUSED(el);
